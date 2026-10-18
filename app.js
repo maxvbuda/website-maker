@@ -9,7 +9,7 @@
   const TUTORIAL_KEY = 'siteslides.tutorialDone.v1';
   const OWNER_KEYS = 'siteslides.ownerKeys.v1';
   // Publishing server (see worker/). Empty turns Publish off.
-  const PUBLISH_API = '';
+  const PUBLISH_API = 'https://siteslides-publish.maxvbuda.workers.dev';
   const PAGES_BASE = 'https://maxvbuda.github.io/website-maker/';
   const SNAP = 6; // screen pixels
   const FONTS = ['Inter', 'Poppins', 'Montserrat', 'Playfair Display', 'Lora', 'Space Mono', 'Georgia', 'Arial', 'Verdana', 'Times New Roman', 'Courier New'];

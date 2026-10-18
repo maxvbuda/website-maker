@@ -1,6 +1,7 @@
 name = "siteslides-publish"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
+account_id = "d84b38cfd7542f2f092b8fc0a8f146ad"
 
 [vars]
 GITHUB_OWNER = "maxvbuda"
