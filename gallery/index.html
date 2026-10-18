@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteSlides Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #ffffff; --ink: #1f2330; --muted: #6b7280; --line: #e4e6ee;
+    --accent: #4f46e5; --accent-ink: #ffffff; --thumb: #eef0f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12131a; --card: #1b1d27; --ink: #eceef5; --muted: #9aa0b4; --line: #2a2d3b; --accent: #818cf8; --accent-ink: #11121a; --thumb: #232634; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  header { max-width: 1160px; margin: 0 auto; padding: 40px 16px 8px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+  h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); letter-spacing: -.03em; }
+  .sub { margin: 4px 0 0; color: var(--muted); }
+  .make { background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 600; padding: 10px 16px; border-radius: 10px; white-space: nowrap; }
+  .make:hover { filter: brightness(1.08); }
+  .tools { max-width: 1160px; margin: 0 auto; padding: 16px; }
+  #search { width: 100%; max-width: 360px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; }
+  #search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  main { max-width: 1160px; margin: 0 auto; padding: 0 16px 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+  .card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; color: inherit; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+  .card:hover, .card:focus-visible { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,.12); outline: none; }
+  .thumb { position: relative; aspect-ratio: 16 / 10; background: var(--thumb); overflow: hidden; border-bottom: 1px solid var(--line); }
+  .thumb iframe { position: absolute; top: 0; left: 0; width: 1200px; height: 750px; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; }
+  .info { padding: 12px 14px 14px; }
+  .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 60px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Gallery</h1>
+    <p class="sub" id="count">Every site made with SiteSlides.</p>
+  </div>
+  <a class="make" href="../">Make your own site</a>
+</header>
+<div class="tools"><input id="search" type="search" placeholder="Search sites…" aria-label="Search sites"></div>
+<main id="grid"><p class="empty">Loading…</p></main>
+<script>
+(function () {
+  var grid = document.getElementById('grid');
+  var sites = [];
+
+  function ago(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var s = (Date.now() - d) / 1000;
+    if (s < 3600) return 'just now';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    if (s < 86400 * 30) return Math.floor(s / 86400) + 'd ago';
+    return d.toLocaleDateString();
+  }
+
+  function fitThumbs() {
+    grid.querySelectorAll('.thumb').forEach(function (t) {
+      t.firstChild.style.transform = 'scale(' + t.clientWidth / 1200 + ')';
+    });
+  }
+
+  function render() {
+    var q = document.getElementById('search').value.trim().toLowerCase();
+    var list = sites.filter(function (s) { return !q || (s.title + ' ' + s.slug).toLowerCase().indexOf(q) !== -1; });
+    grid.textContent = '';
+    if (!list.length) {
+      var p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = sites.length ? 'No sites match your search.' : 'No sites yet. Be the first!';
+      grid.appendChild(p);
+      return;
+    }
+    list.forEach(function (s) {
+      var a = document.createElement('a');
+      a.className = 'card';
+      a.href = '../' + encodeURIComponent(s.slug) + '/';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      var thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      var f = document.createElement('iframe');
+      f.src = a.href;
+      f.loading = 'lazy';
+      f.tabIndex = -1;
+      f.title = s.title;
+      f.setAttribute('sandbox', 'allow-scripts');
+      f.setAttribute('scrolling', 'no');
+      thumb.appendChild(f);
+      var info = document.createElement('div');
+      info.className = 'info';
+      var t = document.createElement('div');
+      t.className = 'title';
+      t.textContent = s.title || s.slug;
+      var m = document.createElement('div');
+      m.className = 'meta';
+      m.textContent = '/' + s.slug + '/ · ' + ago(s.updated);
+      info.appendChild(t);
+      info.appendChild(m);
+      a.appendChild(thumb);
+      a.appendChild(info);
+      grid.appendChild(a);
+    });
+    fitThumbs();
+  }
+
+  document.getElementById('search').addEventListener('input', render);
+  window.addEventListener('resize', fitThumbs);
+
+  fetch('../sites.json', { cache: 'no-cache' })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .catch(function () { return []; })
+    .then(function (data) {
+      sites = Array.isArray(data) ? data.filter(function (s) { return s && /^[a-z0-9-]+$/.test(s.slug); }) : [];
+      document.getElementById('count').textContent = sites.length + (sites.length === 1 ? ' site' : ' sites') + ' made with SiteSlides.';
+      render();
+    });
+})();
+</script>
+</body>
+</html>

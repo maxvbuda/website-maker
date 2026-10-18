@@ -37,6 +37,7 @@ body{overflow-x:hidden;-webkit-font-smoothing:antialiased}
 .el-text{width:100%;overflow-wrap:break-word}
 .el-text p{margin:0}
 .el img{width:100%;height:100%;display:block}
+.el-html-frame{width:100%;height:100%;border:0;display:block;background:transparent}
 a.el{text-decoration:none;cursor:pointer;transition:filter .15s ease,transform .15s ease}
 a.el:hover{filter:brightness(1.08)}
 a.el-button:hover{transform:translateY(-1px)}
@@ -191,8 +192,20 @@ a.el-button:hover{transform:translateY(-1px)}
     return lazy ? `<link rel="stylesheet" href="${href}" media="print" onload="this.media='all'">` : `<link rel="stylesheet" href="${href}">`;
   }
 
+  // HTML boxes run in their own frame so their styles and scripts can't break the rest of the page.
+  // A full document (with <html> or a doctype) is used as written; a snippet gets a blank page around it.
   function htmlFrameDoc(code) {
-    return `<!doctype html><html><head><meta charset="utf-8">${fontLinkTag(Object.keys(GOOGLE_FONTS), true)}<style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden}</style></head><body>${code}</body></html>`;
+    code = code || '';
+    if (/^\s*(<!--[\s\S]*?-->\s*)*<(!doctype|html)[\s>]/i.test(code)) return code;
+    return `<!doctype html><html><head><meta charset="utf-8">${fontLinkTag(Object.keys(GOOGLE_FONTS), true)}<style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%;background:transparent}</style></head><body>${code}</body></html>`;
+  }
+
+  const BOX_SANDBOX = 'allow-scripts allow-forms allow-popups allow-modals allow-pointer-lock';
+
+  function hashText(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193);
+    return (h >>> 0).toString(36);
   }
 
   // mode: 'editor' | 'thumb' | 'preview' | 'export'
@@ -208,7 +221,10 @@ a.el-button:hover{transform:translateY(-1px)}
     if (el.type === 'html') {
       if (mode === 'editor') return `<iframe class="el-html-frame" tabindex="-1" sandbox="allow-scripts" srcdoc="${esc(htmlFrameDoc(el.code))}"></iframe>`;
       if (mode === 'thumb') return '<div class="html-thumb">&lt;/&gt;</div>';
-      return el.code || '';
+      // Published pages block scripts, so their boxes are served from the publishing server instead.
+      const box = ctx.boxes?.get(el.id);
+      if (box) return `<iframe class="el-html-frame" title="HTML box" sandbox="${BOX_SANDBOX}" src="${esc(`${PUBLISH_API}/box/${ctx.slug}/${box.n}?v=${box.v}`)}"></iframe>`;
+      return `<iframe class="el-html-frame" title="HTML box" sandbox="${BOX_SANDBOX}" srcdoc="${esc(htmlFrameDoc(el.code))}"></iframe>`;
     }
     return '';
   }
@@ -574,7 +590,7 @@ ${nav}
           <h4>Your HTML</h4>
           <pre class="code-snippet">${esc(el.code || '(empty)')}</pre>
           <button class="primary" data-action="edit-code">Edit HTML…</button>
-          <p class="hint" style="margin-top:8px">Exported as a <code>&lt;div&gt;</code> at this exact position and size. Tip: double-click the box to edit.</p>
+          <p class="hint" style="margin-top:8px">Shown in its own frame at this exact position and size, so its styles and scripts can’t affect the rest of the page. Tip: double-click the box to edit.</p>
         </div>`);
     }
 
@@ -1320,7 +1336,7 @@ ${nav}
   });
 
   // ---------- Export (zip) ----------
-  function buildExportFiles({ publish = false } = {}) {
+  function buildExportFiles({ publish = false, slug = '' } = {}) {
     const files = pageFiles();
     const assets = new Map();
     let n = 0;
@@ -1333,8 +1349,20 @@ ${nav}
         }
       }
     }
-    const out = site.pages.map((p) => ({ name: files.get(p.id), data: buildPageDoc(p, 'export', { files, assets, publish }) }));
-    out.push({ name: 'style.css', data: SITE_CSS });
+    const boxes = new Map();
+    const boxFiles = [];
+    if (publish) {
+      for (const p of site.pages) {
+        for (const e of p.elements) {
+          if (e.type !== 'html') continue;
+          const doc = htmlFrameDoc(e.code);
+          boxes.set(e.id, { n: boxes.size + 1, v: hashText(doc) });
+          boxFiles.push({ name: `boxes/${boxes.size}.txt`, data: doc });
+        }
+      }
+    }
+    const out = site.pages.map((p) => ({ name: files.get(p.id), data: buildPageDoc(p, 'export', { files, assets, publish, boxes, slug }) }));
+    out.push({ name: 'style.css', data: SITE_CSS }, ...boxFiles);
     assets.forEach((path, dataUrl) => out.push({ name: path, data: dataUrlBytes(dataUrl) }));
     return out;
   }
@@ -1491,20 +1519,20 @@ ${nav}
     btn.disabled = true;
     setPubStatus('Publishing…');
     try {
-      const files = buildExportFiles({ publish: true }).map((f) => (typeof f.data === 'string'
+      const files = buildExportFiles({ publish: true, slug }).map((f) => (typeof f.data === 'string'
         ? { name: f.name, text: f.data }
         : { name: f.name, base64: bytesToBase64(f.data) }));
       const res = await fetch(`${PUBLISH_API}/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, ownerKey: key, files }),
+        body: JSON.stringify({ slug, title: site.title, ownerKey: key, files }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Publishing failed. Please try again.');
       rememberOwnerKey(slug, data.ownerKey);
       site.publish = { slug, url: data.url, at: Date.now(), key: data.ownerKey };
       save();
-      setPubStatus(`🎉 Published! Your site will be live at <a href="${esc(data.url)}" target="_blank" rel="noopener">${esc(data.url)}</a> in about a minute.`, 'ok');
+      setPubStatus(`🎉 Published! Your site will be live at <a href="${esc(data.url)}" target="_blank" rel="noopener">${esc(data.url)}</a> in about a minute. It will also show up in the <a href="${PAGES_BASE}gallery/" target="_blank" rel="noopener">gallery</a>.`, 'ok');
       emit('published');
     } catch (err) {
       setPubStatus(esc(err instanceof TypeError ? 'Couldn’t reach the publishing server. Check your internet connection and try again.' : err.message), 'err');
@@ -1602,6 +1630,7 @@ ${nav}
     preview: () => openPreview(),
     export: openExport,
     publish: openPublish,
+    gallery: () => window.open(`${PAGES_BASE}gallery/`, '_blank', 'noopener'),
     'do-publish': doPublish,
     'download-zip': () => {
       download(makeZip(buildExportFiles()), `${slugify(site.title)}.zip`);

@@ -8,10 +8,11 @@ Build a website the way you build a slide deck. Each slide is a page; drag headi
 - Slide-style page list: add, duplicate, reorder (drag), delete; the first page is `index.html`
 - Drag, resize and snap-to-guides on a 1200px canvas; right-click menu, undo/redo, copy/paste
 - Style panel: fonts, colors, alignment, padding, fill, corners, border, shadow, opacity
-- **HTML boxes:** click **HTML**, drag a box anywhere, and type your own code — it exports as a `<div>` at that exact spot and size
+- **HTML boxes:** click **HTML**, drag a box anywhere, and paste a snippet or a whole page (styles and scripts included) — it runs in its own frame at that exact spot and size
 - Links to other pages or any URL
 - Preview at desktop / tablet / phone sizes
 - **Publish** in one click to `maxvbuda.github.io/website-maker/<site-name>/` — no login (see *Publishing server* below)
+- **Gallery** of every published site at https://maxvbuda.github.io/website-maker/gallery/
 - Export a `.zip` (HTML pages + `style.css` + images) ready for Netlify, GitHub Pages or any host
 - Autosaves in the browser; save/open project `.json` files
 - Interactive tutorial on first visit (reopen with the **Tutorial** button)
@@ -25,6 +26,8 @@ under `<site-name>/`. The GitHub token lives only in the worker as a secret. For
 - gives each site a secret owner key (kept automatically in the publisher's browser), so only that browser can update it
 - accepts only page HTML, `style.css` and PNG/JPEG/GIF/WebP images (checked by content), with size and rate limits
 - adds a Content-Security-Policy to every published page that blocks all JavaScript except `fit.js`
+- stores HTML boxes as `.txt` files and serves them itself (`GET /box/<site>/<n>`) under a sandbox policy, so their scripts run on the worker's origin, never on github.io
+- keeps `sites.json` (read by the gallery) up to date on every publish
 
 One-time setup:
 
