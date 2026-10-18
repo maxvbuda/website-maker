@@ -1,0 +1,340 @@
+<!doctype html>
+<meta http-equiv="Content-Security-Policy" content="script-src https://maxvbuda.github.io/website-maker/fit.js; object-src 'none'; base-uri 'none'">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home · Coin catch</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body style="background:#ffffff">
+<div class="site-viewport">
+<div class="site-page" style="height:980px;background:#ffffff">
+<div class="el el-html" style="left:-83px;top:163px;width:1367px;height:789px"><!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coin Catch!</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f8f6ff;
+      --muted: #b8b3d2;
+      --pink: #ff70b7;
+      --gold: #ffd45c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: radial-gradient(ellipse at 50% 0%, #373063 0, #17162a 54%, #10101b 100%);
+      color: var(--ink);
+      font: 16px/1.45 system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+
+    main { width: min(100%, 560px); text-align: center; }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 8vw, 3.25rem);
+      letter-spacing: -.06em;
+    }
+
+    h1 span { color: var(--gold); }
+    .sub { margin: 2px 0 16px; color: var(--muted); }
+    .hud { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 10px; font-weight: 750; }
+    .score { color: var(--gold); }
+    .lives { color: var(--pink); letter-spacing: .12em; }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border: 1px solid #ffffff26;
+      border-radius: 18px;
+      background: #171b37;
+      box-shadow: 0 18px 60px #0006;
+      touch-action: none;
+    }
+
+    .controls { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 14px 0 8px; }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      background: #ffffff16;
+      color: var(--ink);
+      font: 700 1rem system-ui;
+      padding: 11px 17px;
+      cursor: pointer;
+    }
+
+    button:hover { background: #ffffff28; }
+    button:active { transform: translateY(1px); }
+    .move { min-width: 62px; font-size: 1.3rem; touch-action: none; }
+    #restart { background: var(--pink); color: #281126; margin-left: 7px; font-size: .95rem; }
+    .help { color: var(--muted); font-size: .9rem; margin: 8px 0 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Coin <span>Catch!</span></h1>
+    <p class="sub">Catch the coins. Dodge the rocks!</p>
+
+    <div class="hud">
+      <div>Score: <span class="score" id="score">0</span></div>
+      <div class="lives" id="lives" aria-label="3 lives">♥ ♥ ♥</div>
+      <button id="restart">Restart</button>
+    </div>
+
+    <canvas id="game" width="640" height="480" aria-label="Game area"></canvas>
+
+    <div class="controls">
+      <button class="move" data-dir="-1" aria-label="Move left">◀</button>
+      <button class="move" data-dir="1" aria-label="Move right">▶</button>
+    </div>
+
+    <p class="help">Use ← → or A / D. On a phone, hold the arrows.</p>
+  </main>
+
+  <script>
+    (() => {
+      const canvas = document.querySelector('#game');
+      const ctx = canvas.getContext('2d');
+      const scoreEl = document.querySelector('#score');
+      const livesEl = document.querySelector('#lives');
+      const W = canvas.width;
+      const H = canvas.height;
+
+      let player, drops, score, lives, keys, over, last, spawn, raf;
+
+      const stars = Array.from({ length: 55 }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: Math.random() * 1.5 + .4,
+        a: Math.random() * .65 + .2
+      }));
+
+      function reset() {
+        cancelAnimationFrame(raf);
+        player = { x: W / 2, y: H - 48, w: 52, h: 22, speed: 390 };
+        drops = [];
+        score = 0;
+        lives = 3;
+        keys = {};
+        over = false;
+        last = 0;
+        spawn = 0;
+        scoreEl.textContent = '0';
+        livesEl.textContent = '♥ ♥ ♥';
+        livesEl.setAttribute('aria-label', '3 lives');
+        raf = requestAnimationFrame(loop);
+      }
+
+      function addDrop() {
+        const coin = Math.random() < .68;
+        const r = coin ? 13 : 16;
+
+        drops.push({
+          x: 24 + Math.random() * (W - 48),
+          y: -25,
+          r,
+          coin,
+          speed: (coin ? 145 : 180) + Math.min(score * 2, 130),
+          spin: Math.random() * 6
+        });
+      }
+
+      function roundedRect(x, y, w, h, r, color) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        ctx.fill();
+      }
+
+      function draw() {
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#20274d');
+        bg.addColorStop(1, '#17162a');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+
+        for (const s of stars) {
+          ctx.globalAlpha = s.a;
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.fillStyle = '#ffffff16';
+        ctx.fillRect(0, H - 16, W, 2);
+
+        ctx.shadowColor = '#ff70b7';
+        ctx.shadowBlur = 18;
+        roundedRect(player.x - player.w / 2, player.y, player.w, player.h, 8, '#ff70b7');
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffd6ea';
+        ctx.fillRect(player.x - player.w / 2 + 6, player.y + 4, player.w - 12, 3);
+
+        for (const d of drops) {
+          ctx.save();
+          ctx.translate(d.x, d.y);
+
+          if (d.coin) {
+            ctx.rotate(Math.sin(d.spin) * .22);
+            ctx.shadowColor = '#ffd45c';
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = '#ffd45c';
+            ctx.beginPath();
+            ctx.arc(0, 0, d.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ad6a13';
+            ctx.font = 'bold 18px system-ui';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('$', 0, 1);
+          } else {
+            ctx.rotate(d.spin * .25);
+            ctx.fillStyle = '#a6a9bc';
+            ctx.beginPath();
+            ctx.moveTo(-d.r * .9, -d.r * .55);
+            ctx.lineTo(-d.r * .25, -d.r);
+            ctx.lineTo(d.r * .8, -d.r * .6);
+            ctx.lineTo(d.r, d.r * .2);
+            ctx.lineTo(d.r * .35, d.r);
+            ctx.lineTo(-d.r * .8, d.r * .65);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#d9dbe5';
+            ctx.beginPath();
+            ctx.arc(-4, -5, 3, 0, 7);
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+
+        if (over) {
+          ctx.fillStyle = '#0d1020c9';
+          ctx.fillRect(0, 0, W, H);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#fff';
+          ctx.font = '800 42px system-ui';
+          ctx.fillText('GAME OVER', W / 2, H / 2 - 16);
+          ctx.fillStyle = '#ffd45c';
+          ctx.font = '700 22px system-ui';
+          ctx.fillText(`You caught ${score} coin${score === 1 ? '' : 's'}!`, W / 2, H / 2 + 24);
+          ctx.fillStyle = '#d4d1e6';
+          ctx.font = '16px system-ui';
+          ctx.fillText('Press Restart to play again', W / 2, H / 2 + 58);
+        }
+      }
+
+      function loop(time) {
+        const dt = Math.min((time - last) / 1000 || 0, .035);
+        last = time;
+
+        if (!over) {
+          if (keys.left) player.x -= player.speed * dt;
+          if (keys.right) player.x += player.speed * dt;
+          player.x = Math.max(player.w / 2, Math.min(W - player.w / 2, player.x));
+
+          spawn -= dt;
+          if (spawn <= 0) {
+            addDrop();
+            spawn = Math.max(.3, .78 - score * .008);
+          }
+
+          for (const d of drops) {
+            d.y += d.speed * dt;
+            d.spin += dt * 4;
+
+            if (
+              d.y + d.r >= player.y &&
+              d.y - d.r <= player.y + player.h &&
+              Math.abs(d.x - player.x) < player.w / 2 + d.r * .6
+            ) {
+              if (d.coin) score++;
+              else lives--;
+              d.hit = true;
+            }
+          }
+
+          drops = drops.filter(d => {
+            if (d.hit) return false;
+            if (d.y - d.r > H) {
+              if (d.coin) lives--;
+              return false;
+            }
+            return true;
+          });
+
+          scoreEl.textContent = score;
+          livesEl.textContent = '♥ '.repeat(Math.max(0, lives)).trim() || '♡';
+          livesEl.setAttribute('aria-label', `${lives} lives`);
+          if (lives <= 0) over = true;
+        }
+
+        draw();
+        raf = requestAnimationFrame(loop);
+      }
+
+      window.addEventListener('keydown', e => {
+        if (['ArrowLeft', 'ArrowRight', ' ', 'a', 'A', 'd', 'D'].includes(e.key)) {
+          e.preventDefault();
+        }
+        if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = true;
+        if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = true;
+      });
+
+      window.addEventListener('keyup', e => {
+        if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
+        if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = false;
+      });
+
+      document.querySelectorAll('.move').forEach(btn => {
+        const dir = Number(btn.dataset.dir);
+        const down = e => {
+          e.preventDefault();
+          keys[dir < 0 ? 'left' : 'right'] = true;
+        };
+        const up = e => {
+          e.preventDefault();
+          keys[dir < 0 ? 'left' : 'right'] = false;
+        };
+
+        btn.addEventListener('pointerdown', down);
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(t =>
+          btn.addEventListener(t, up)
+        );
+      });
+
+      canvas.addEventListener('pointermove', e => {
+        if (e.buttons) {
+          const r = canvas.getBoundingClientRect();
+          player.x = (e.clientX - r.left) * W / r.width;
+        }
+      });
+
+      document.querySelector('#restart').addEventListener('click', reset);
+      reset();
+    })();
+  </script>
+</body>
+</html></div>
+</div>
+</div>
+<script src="../fit.js"></script>
+
+</body>
+</html>

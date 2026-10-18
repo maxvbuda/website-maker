@@ -1,0 +1,12 @@
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{overflow-x:hidden;-webkit-font-smoothing:antialiased}
+.site-viewport{position:relative;width:100%;overflow:hidden}
+.site-page{position:relative;width:1200px;margin:0 auto;transform-origin:0 0;overflow:hidden}
+.el{position:absolute;overflow:hidden;display:block}
+.el-text{width:100%;overflow-wrap:break-word}
+.el-text p{margin:0}
+.el img{width:100%;height:100%;display:block}
+a.el{text-decoration:none;cursor:pointer;transition:filter .15s ease,transform .15s ease}
+a.el:hover{filter:brightness(1.08)}
+a.el-button:hover{transform:translateY(-1px)}
