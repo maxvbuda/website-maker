@@ -7,6 +7,8 @@
   const PAGE_W = 1200;
   const STORAGE_KEY = 'siteslides.project.v1';
   const TUTORIAL_KEY = 'siteslides.tutorialDone.v1';
+  const GITHUB_KEY = 'siteslides.github.v1';
+  const TOKEN_KEY = 'siteslides.githubToken.v1';
   const SNAP = 6; // screen pixels
   const FONTS = ['Inter', 'Poppins', 'Montserrat', 'Playfair Display', 'Lora', 'Space Mono', 'Georgia', 'Arial', 'Verdana', 'Times New Roman', 'Courier New'];
   const GOOGLE_FONTS = {
@@ -1431,6 +1433,177 @@ ${nav}
     emit('export-opened');
   }
 
+  // ---------- Publish to GitHub Pages ----------
+  // Commits the exported files into <repo>/<site-name>/ so the site is served at
+  // https://<owner>.github.io/<repo>/<site-name>/.
+  const store = {
+    get: (s, k) => { try { return s.getItem(k); } catch (err) { return null; } },
+    set: (s, k, v) => { try { if (v == null) s.removeItem(k); else s.setItem(k, v); } catch (err) { /* ignore */ } },
+  };
+
+  function ghSettings() {
+    // When the editor itself runs on GitHub Pages, default to publishing next to it.
+    const host = location.hostname.match(/^([^.]+)\.github\.io$/i);
+    const seg = location.pathname.split('/').filter(Boolean)[0];
+    const defaults = { owner: host ? host[1] : 'maxvbuda', repo: host ? (seg || `${host[1]}.github.io`) : 'website-maker', branch: 'main' };
+    let saved = {};
+    try { saved = JSON.parse(store.get(localStorage, GITHUB_KEY) || '{}'); } catch (err) { /* ignore */ }
+    const token = store.get(localStorage, TOKEN_KEY) || store.get(sessionStorage, TOKEN_KEY) || '';
+    return { ...defaults, ...saved, token, remember: !!store.get(localStorage, TOKEN_KEY) };
+  }
+
+  function saveGhSettings(s) {
+    store.set(localStorage, GITHUB_KEY, JSON.stringify({ owner: s.owner, repo: s.repo, branch: s.branch }));
+    // The token lives in this tab only unless the user opts in: other pages on the same
+    // github.io domain (including published sites) can read localStorage.
+    store.set(sessionStorage, TOKEN_KEY, s.token || null);
+    store.set(localStorage, TOKEN_KEY, s.remember && s.token ? s.token : null);
+  }
+
+  function pagesUrl(s, slug) {
+    const owner = s.owner.toLowerCase();
+    const base = s.repo.toLowerCase() === `${owner}.github.io` ? `https://${owner}.github.io/` : `https://${owner}.github.io/${s.repo}/`;
+    return `${base}${slug}/`;
+  }
+
+  function readPublishForm() {
+    return {
+      slug: slugify($('#pub-slug').value),
+      owner: $('#pub-owner').value.trim(),
+      repo: $('#pub-repo').value.trim(),
+      branch: $('#pub-branch').value.trim() || 'main',
+      token: $('#pub-token').value.trim(),
+      remember: $('#pub-remember').checked,
+    };
+  }
+
+  function refreshPublishUrl() {
+    const f = readPublishForm();
+    const url = pagesUrl(f, f.slug);
+    $('#pub-url').textContent = url;
+    $('#pub-url').href = url;
+    $$('.pub-repo-name').forEach((x) => { x.textContent = f.repo; });
+  }
+
+  function setPubStatus(html, kind = '') {
+    const el = $('#pub-status');
+    el.className = `pub-status ${kind}`;
+    el.innerHTML = html;
+  }
+
+  function openPublish() {
+    if (editingId) stopEditing();
+    const s = ghSettings();
+    $('#pub-slug').value = site.publish?.slug || slugify(site.title);
+    $('#pub-owner').value = s.owner;
+    $('#pub-repo').value = s.repo;
+    $('#pub-branch').value = s.branch;
+    $('#pub-token').value = s.token;
+    $('#pub-remember').checked = s.remember;
+    $('#pub-gh').open = !s.token;
+    $('#pub-go').disabled = false;
+    $('#pub-status').classList.add('hidden');
+    if (site.publish?.url) {
+      setPubStatus(`Last published ${new Date(site.publish.at).toLocaleString()} to <a href="${esc(site.publish.url)}" target="_blank" rel="noopener">${esc(site.publish.url)}</a>. Publish again to update it.`);
+    }
+    refreshPublishUrl();
+    openModal('#publish-modal');
+  }
+
+  ['#pub-slug', '#pub-owner', '#pub-repo'].forEach((s) => $(s).addEventListener('input', refreshPublishUrl));
+  $('#pub-slug').addEventListener('change', (e) => { e.target.value = slugify(e.target.value); refreshPublishUrl(); });
+
+  async function gh(s, path, opts = {}) {
+    const res = await fetch(`https://api.github.com/repos/${encodeURIComponent(s.owner)}/${encodeURIComponent(s.repo)}${path}`, {
+      ...opts,
+      headers: {
+        Authorization: `Bearer ${s.token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+    });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { msg = (await res.json()).message || msg; } catch (err) { /* ignore */ }
+      const e = new Error(msg);
+      e.status = res.status;
+      throw e;
+    }
+    return res.json();
+  }
+
+  function bytesToBase64(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+
+  function explainGhError(err, s) {
+    if (err.status === 401) return 'GitHub rejected the token. Check that you copied all of it and that it hasn’t expired.';
+    if (err.status === 403) return `The token isn’t allowed to write to <b>${esc(s.owner)}/${esc(s.repo)}</b>. Give it <b>Contents: Read and write</b> permission for that repository.`;
+    if (err.status === 404) return `Couldn’t find <b>${esc(s.owner)}/${esc(s.repo)}</b> (branch <b>${esc(s.branch)}</b>), or the token can’t see it. Check the GitHub connection settings.`;
+    if (err.status === 422) return 'Someone else updated the repository at the same moment. Please click Publish again.';
+    if (err instanceof TypeError) return 'Couldn’t reach GitHub. Check your internet connection and try again.';
+    return `GitHub said: ${esc(err.message)}`;
+  }
+
+  async function doPublish() {
+    const s = readPublishForm();
+    if (!s.slug) { setPubStatus('Give your site a name first.', 'err'); return; }
+    if (!s.owner || !s.repo) { $('#pub-gh').open = true; setPubStatus('Fill in the GitHub owner and repository.', 'err'); return; }
+    if (!s.token) { $('#pub-gh').open = true; setPubStatus('Paste a GitHub token below to publish. The link above shows how to create one.', 'err'); $('#pub-token').focus(); return; }
+    saveGhSettings(s);
+    const btn = $('#pub-go');
+    btn.disabled = true;
+    const status = (msg) => setPubStatus(esc(msg));
+    try {
+      status('Connecting to GitHub…');
+      const branch = encodeURIComponent(s.branch);
+      const ref = await gh(s, `/git/ref/heads/${branch}`);
+      const baseSha = ref.object.sha;
+      const baseCommit = await gh(s, `/git/commits/${baseSha}`);
+      const tree = await gh(s, `/git/trees/${baseCommit.tree.sha}?recursive=1`);
+      const prefix = `${s.slug}/`;
+      if (tree.tree.some((t) => t.path === s.slug && t.type === 'blob')) {
+        throw Object.assign(new Error(`“${s.slug}” is already a file in the repository. Pick another site name.`), { status: 0 });
+      }
+      const existing = tree.tree.filter((t) => t.type === 'blob' && t.path.startsWith(prefix)).map((t) => t.path);
+      const mine = site.publish && site.publish.slug === s.slug && site.publish.repo === `${s.owner}/${s.repo}`;
+      if (existing.length && !mine && !confirm(`A site called “${s.slug}” is already published. Replace it with this one?`)) {
+        setPubStatus('Cancelled — choose a different site name to keep both.');
+        return;
+      }
+
+      const files = buildExportFiles();
+      const entries = [];
+      for (let i = 0; i < files.length; i++) {
+        status(`Uploading ${i + 1} of ${files.length}: ${files[i].name}`);
+        const data = typeof files[i].data === 'string' ? new TextEncoder().encode(files[i].data) : files[i].data;
+        const blob = await gh(s, '/git/blobs', { method: 'POST', body: JSON.stringify({ content: bytesToBase64(data), encoding: 'base64' }) });
+        entries.push({ path: prefix + files[i].name, mode: '100644', type: 'blob', sha: blob.sha });
+      }
+      // Remove files from an earlier publish that no longer exist (deleted pages or images).
+      const keep = new Set(entries.map((e) => e.path));
+      existing.filter((p) => !keep.has(p)).forEach((p) => entries.push({ path: p, mode: '100644', type: 'blob', sha: null }));
+
+      status('Saving to GitHub…');
+      const newTree = await gh(s, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: entries }) });
+      const commit = await gh(s, '/git/commits', { method: 'POST', body: JSON.stringify({ message: `Publish ${s.slug}`, tree: newTree.sha, parents: [baseSha] }) });
+      await gh(s, `/git/refs/heads/${branch}`, { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
+
+      const url = pagesUrl(s, s.slug);
+      site.publish = { slug: s.slug, repo: `${s.owner}/${s.repo}`, url, at: Date.now() };
+      save();
+      setPubStatus(`🎉 Published! Your site will be live at <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a> in about a minute. (GitHub Pages must be turned on for <b>${esc(s.owner)}/${esc(s.repo)}</b>.)`, 'ok');
+      emit('published');
+    } catch (err) {
+      setPubStatus(err.status === 0 ? esc(err.message) : explainGhError(err, s), 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   // ---------- Modals, menus, toast ----------
   function openModal(sel) {
     closeMenus();
@@ -1519,6 +1692,8 @@ ${nav}
     'ctx-down-page': () => movePage(ctxPageId, site.pages.findIndex((p) => p.id === ctxPageId) + 1),
     preview: () => openPreview(),
     export: openExport,
+    publish: openPublish,
+    'do-publish': doPublish,
     'download-zip': () => {
       download(makeZip(buildExportFiles()), `${slugify(site.title)}.zip`);
       toast('Website downloaded! Unzip it and upload the folder to any host.', 4000);
@@ -1684,9 +1859,9 @@ ${nav}
       body: '<p>See your site exactly as visitors will — on desktop, tablet or phone. Links work in the preview, so you can click around.</p>',
     },
     {
-      target: '#btn-export', place: 'bottom',
+      target: '#btn-publish', place: 'bottom',
       title: 'Publish it',
-      body: '<p><b>Export site</b> downloads a .zip of real HTML files. Upload it to any free static host — Netlify Drop, GitHub Pages, Cloudflare Pages — and you\'re live.</p>',
+      body: '<p><b>Publish</b> puts your site online for free at its own address, like <code>maxvbuda.github.io/website-maker/my-site/</code>. Publish again any time to update it.</p><p>Prefer another host? <b>Export</b> downloads a .zip of plain HTML files you can upload anywhere.</p>',
     },
     {
       title: 'You\'re ready! 🎉',

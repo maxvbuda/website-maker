@@ -11,6 +11,7 @@ Build a website the way you build a slide deck. Each slide is a page; drag headi
 - **HTML boxes:** click **HTML**, drag a box anywhere, and type your own code — it exports as a `<div>` at that exact spot and size
 - Links to other pages or any URL
 - Preview at desktop / tablet / phone sizes
+- **Publish** straight to GitHub Pages at `maxvbuda.github.io/website-maker/<site-name>/` (needs a fine-grained token with Contents: read & write on this repo)
 - Export a `.zip` (HTML pages + `style.css` + images) ready for Netlify, GitHub Pages or any host
 - Autosaves in the browser; save/open project `.json` files
 - Interactive tutorial on first visit (reopen with the **Tutorial** button)

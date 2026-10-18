@@ -254,6 +254,14 @@ code { background: #f1f3f6; padding: 1px 5px; border-radius: 4px; font-size: 12.
 .code-preview-holder { flex: 1; overflow: auto; background: repeating-conic-gradient(#f3f4f6 0 25%, #fff 0 50%) 0 0 / 16px 16px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 #code-preview-frame { display: block; border: 1px dashed #a5b4fc; background: transparent; transform-origin: 0 0; }
 
+/* Publish */
+.pub-url { font-size: 13px; color: var(--muted); margin: -2px 0 6px 86px; word-break: break-all; }
+.pub-url a { color: var(--accent); font-weight: 600; }
+.pub-status { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: #f7f8fa; font-size: 13px; line-height: 1.5; }
+.pub-status.ok { background: #ecfdf5; color: #065f46; }
+.pub-status.err { background: #fef2f2; color: #991b1b; }
+.pub-status a { color: inherit; font-weight: 700; }
+
 /* ---------- Tutorial ---------- */
 #tutorial { position: fixed; inset: 0; z-index: 200; pointer-events: none; }
 #tut-spot {
