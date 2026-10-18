@@ -145,20 +145,9 @@
   <div id="publish-modal" class="modal hidden">
     <div class="dialog">
       <h2>Publish to the web</h2>
-      <p>Put this website online for free with GitHub Pages.</p>
+      <p>Put this website online for free. Pick a name — it becomes part of your web address.</p>
       <label class="field"><span>Site name</span><input type="text" id="pub-slug" spellcheck="false" autocomplete="off"></label>
       <div class="pub-url">Your address: <a id="pub-url" target="_blank" rel="noopener"></a></div>
-      <details id="pub-gh" class="hosting">
-        <summary>GitHub connection</summary>
-        <p class="hint">Publishing saves your site's files into a GitHub repository, so it needs a token that can write to it.
-          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained token</a>, then choose
-          <b>Only select repositories → <span class="pub-repo-name">website-maker</span></b> and set <b>Repository permissions → Contents</b> to <b>Read and write</b>.</p>
-        <label class="field"><span>Token</span><input type="password" id="pub-token" autocomplete="off" placeholder="github_pat_…"></label>
-        <label class="field"><span>Remember</span><input type="checkbox" id="pub-remember"><span class="small muted">Keep the token on this device. Only turn this on for your own computer.</span></label>
-        <label class="field"><span>Owner</span><input type="text" id="pub-owner" spellcheck="false"></label>
-        <label class="field"><span>Repository</span><input type="text" id="pub-repo" spellcheck="false"></label>
-        <label class="field"><span>Branch</span><input type="text" id="pub-branch" spellcheck="false"></label>
-      </details>
       <div id="pub-status" class="pub-status hidden"></div>
       <div class="dialog-actions">
         <button data-action="close-modal">Close</button>
@@ -172,7 +161,7 @@
     <div class="dialog code-dialog">
       <div class="code-head">
         <h2>Edit HTML</h2>
-        <span class="muted">This becomes a <code>&lt;div&gt;</code> at the exact spot and size of your box. CSS in <code>&lt;style&gt;</code> and <code>&lt;script&gt;</code> tags work too.</span>
+        <span class="muted">This becomes a <code>&lt;div&gt;</code> at the exact spot and size of your box. <code>&lt;style&gt;</code> tags and embeds work too. <code>&lt;script&gt;</code> runs in Preview and Export, but is turned off on published sites for safety.</span>
       </div>
       <div class="code-body">
         <textarea id="code-input" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="HTML code"></textarea>

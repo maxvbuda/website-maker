@@ -1,0 +1,19 @@
+name = "siteslides-publish"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+GITHUB_OWNER = "maxvbuda"
+GITHUB_REPO = "website-maker"
+GITHUB_BRANCH = "main"
+PAGES_BASE = "https://maxvbuda.github.io/website-maker/"
+
+# At most 6 publishes per minute from one IP address.
+[[ratelimits]]
+name = "PUBLISH_LIMIT"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 6
+  period = 60
+
+# GITHUB_TOKEN is a secret: npx wrangler secret put GITHUB_TOKEN
