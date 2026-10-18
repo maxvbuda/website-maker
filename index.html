@@ -19,8 +19,8 @@
     <div class="menu-wrap">
       <button class="menu-btn" data-menu="file-menu">File</button>
       <div class="dropdown hidden" id="file-menu">
-        <button data-action="new-blank">New blank site</button>
-        <button data-action="new-template">New from starter template</button>
+        <button data-action="projects">New website…</button>
+        <button data-action="projects">My websites…</button>
         <hr>
         <button data-action="open-project">Open project…</button>
         <button data-action="save-project">Save project (.json)</button>
@@ -29,6 +29,7 @@
         <button data-action="export">Export website (.zip)…</button>
       </div>
     </div>
+    <button id="btn-projects" class="ghost" data-action="projects" title="Start a new website or open one of your others">＋ New website</button>
     <span id="save-status" class="save-status">Saved</span>
     <div class="spacer"></div>
     <button id="btn-tutorial" class="ghost" data-action="tutorial">
@@ -139,6 +140,29 @@
         </ol>
         <p>You can also just double-click <code>index.html</code> to open it locally.</p>
       </details>
+    </div>
+  </div>
+
+  <!-- Projects -->
+  <div id="projects-modal" class="modal hidden">
+    <div class="dialog">
+      <h2>Your websites</h2>
+      <p class="muted">Each website is saved separately in this browser. Starting a new one keeps all the others.</p>
+      <div class="new-project">
+        <button data-action="new-blank">
+          <span class="np-icon">＋</span>
+          <span><b>Blank website</b><span class="muted">One empty page</span></span>
+        </button>
+        <button data-action="new-template">
+          <span class="np-icon">★</span>
+          <span><b>Starter template</b><span class="muted">Home and About pages to edit</span></span>
+        </button>
+      </div>
+      <ul id="project-list" class="project-list"></ul>
+      <div class="dialog-actions">
+        <button data-action="open-project">Open a saved .json file…</button>
+        <button data-action="close-modal">Close</button>
+      </div>
     </div>
   </div>
 

@@ -14,7 +14,7 @@ Build a website the way you build a slide deck. Each slide is a page; drag headi
 - **Publish** in one click to `maxvbuda.github.io/website-maker/<site-name>/` — no login (see *Publishing server* below)
 - **Gallery** of every published site at https://maxvbuda.github.io/website-maker/gallery/
 - Export a `.zip` (HTML pages + `style.css` + images) ready for Netlify, GitHub Pages or any host
-- Autosaves in the browser; save/open project `.json` files
+- **Multiple websites:** click **＋ New website** to start another one; all of them autosave in the browser and you can switch between them. Save/open project `.json` files too
 - Interactive tutorial on first visit (reopen with the **Tutorial** button)
 
 ## Publishing server

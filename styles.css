@@ -229,6 +229,21 @@ code { background: #f1f3f6; padding: 1px 5px; border-radius: 4px; font-size: 12.
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: 16px; }
 .file-list { list-style: none; padding: 10px 12px; margin: 10px 0 0; background: #f7f8fa; border-radius: 8px; max-height: 180px; overflow: auto; font: 13px "Space Mono", ui-monospace, monospace; }
 .file-list li { padding: 2px 0; }
+.new-project { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.new-project button { display: flex; gap: 10px; align-items: center; text-align: left; padding: 12px; border-radius: 10px; height: auto; }
+.new-project button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.new-project b, .new-project .muted { display: block; }
+.new-project .muted { font-size: 12px; }
+.np-icon { width: 34px; height: 34px; flex: none; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 18px; }
+.project-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.project-row { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; border-top: 1px solid var(--line); }
+.project-row:first-child { border-top: 0; }
+.project-row.current { background: var(--accent-soft); }
+.project-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; border: 0; background: transparent; padding: 8px 10px; height: auto; text-align: left; }
+.project-open:hover { background: rgba(0,0,0,.04); }
+.project-title { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-open .muted { font-size: 12px; }
+@media (max-width: 520px) { .new-project { grid-template-columns: 1fr; } }
 .hosting { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
 .hosting summary { cursor: pointer; font-weight: 600; color: var(--accent); }
 .hosting ol { padding-left: 20px; }

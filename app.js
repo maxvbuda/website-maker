@@ -5,7 +5,10 @@
 
   // ---------- Constants ----------
   const PAGE_W = 1200;
-  const STORAGE_KEY = 'siteslides.project.v1';
+  const STORAGE_KEY = 'siteslides.project.v1'; // old single-project save, moved into the project list on load
+  const PROJECTS_KEY = 'siteslides.projects.v1';
+  const CURRENT_KEY = 'siteslides.currentProject.v1';
+  const projectKey = (id) => `siteslides.project.${id}`;
   const TUTORIAL_KEY = 'siteslides.tutorialDone.v1';
   const OWNER_KEYS = 'siteslides.ownerKeys.v1';
   // Publishing server (see worker/). Empty turns Publish off.
@@ -299,40 +302,153 @@ ${nav}
   }
 
   // ---------- Persistence & history ----------
+  // Every website is its own project, saved under its own key; PROJECTS_KEY lists them.
   let saveTimer = null;
   let warnedQuota = false;
+  let projectId = null;
+
+  function projectList() {
+    try {
+      const list = JSON.parse(localStorage.getItem(PROJECTS_KEY));
+      return Array.isArray(list) ? list : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function writeProject() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    try {
+      localStorage.setItem(projectKey(projectId), JSON.stringify({ site, currentPageId }));
+      const list = projectList().filter((p) => p.id !== projectId);
+      list.unshift({ id: projectId, title: site.title, updated: Date.now() });
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+      localStorage.setItem(CURRENT_KEY, projectId);
+      $('#save-status').textContent = 'All changes saved';
+    } catch (err) {
+      $('#save-status').textContent = 'Not saved';
+      if (!warnedQuota) {
+        warnedQuota = true;
+        toast('Browser storage is full (big images?). Use File → Save project to keep your work.', 5000);
+      }
+    }
+  }
+
   function save() {
     $('#save-status').textContent = 'Saving…';
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ site, currentPageId }));
-        $('#save-status').textContent = 'All changes saved';
-      } catch (err) {
-        $('#save-status').textContent = 'Not saved';
-        if (!warnedQuota) {
-          warnedQuota = true;
-          toast('Browser storage is full (big images?). Use File → Save project to keep your work.', 5000);
-        }
-      }
-    }, 300);
+    saveTimer = setTimeout(writeProject, 300);
+  }
+
+  function readProject(id) {
+    try {
+      const data = JSON.parse(localStorage.getItem(projectKey(id)));
+      if (data?.site && Array.isArray(data.site.pages) && data.site.pages.length) return data;
+    } catch (err) { /* treat as missing */ }
+    return null;
   }
 
   function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (data.site && Array.isArray(data.site.pages) && data.site.pages.length) {
-          site = data.site;
-          currentPageId = data.currentPageId;
-          return;
-        }
-      }
-    } catch (err) { /* fall through to starter */ }
+    let current = null;
+    try { current = localStorage.getItem(CURRENT_KEY); } catch (err) { /* ignore */ }
+    const data = current && readProject(current);
+    if (data) {
+      projectId = current;
+      site = data.site;
+      currentPageId = data.currentPageId;
+      return;
+    }
+    projectId = uid();
     site = starterSite();
     currentPageId = site.pages[0].id;
+    try {
+      const old = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (old?.site && Array.isArray(old.site.pages) && old.site.pages.length) {
+        site = old.site;
+        currentPageId = old.currentPageId;
+        writeProject();
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (err) { /* keep the starter site */ }
   }
+
+  // Switches the editor to another project. Undo history belongs to one project, so it's cleared.
+  function switchProject(id, newSite, pageId) {
+    if (saveTimer) writeProject();
+    if (editingId) stopEditing();
+    cancelDraw();
+    projectId = id;
+    site = newSite;
+    currentPageId = site.pages.some((p) => p.id === pageId) ? pageId : site.pages[0].id;
+    selectedId = null;
+    undoStack.length = 0;
+    redoStack.length = 0;
+    closeModals();
+    renderAll();
+    writeProject();
+  }
+
+  function newProject(kind) {
+    switchProject(uid(), kind === 'template' ? starterSite() : blankSite());
+    toast('New website started. Your other websites are still saved — click ＋ New website to see them.', 3500);
+  }
+
+  function openProject(id) {
+    if (id === projectId) { closeModals(); return; }
+    const data = readProject(id);
+    if (!data) { toast('That website couldn’t be opened.'); return; }
+    switchProject(id, data.site, data.currentPageId);
+    toast(`Opened “${site.title}”`);
+  }
+
+  function deleteProject(id) {
+    const entry = projectList().find((p) => p.id === id);
+    if (!confirm(`Delete “${entry?.title || 'this website'}” from this browser? This can’t be undone.${site.publish && id === projectId ? ' (The published site stays online.)' : ''}`)) return;
+    try {
+      localStorage.removeItem(projectKey(id));
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projectList().filter((p) => p.id !== id)));
+    } catch (err) { /* ignore */ }
+    if (id === projectId) {
+      const next = projectList().find((p) => readProject(p.id));
+      if (next) switchProject(next.id, readProject(next.id).site, readProject(next.id).currentPageId);
+      else switchProject(uid(), blankSite());
+    }
+    renderProjects();
+  }
+
+  function timeAgo(t) {
+    const s = (Date.now() - t) / 1000;
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    return new Date(t).toLocaleDateString();
+  }
+
+  function renderProjects() {
+    if (saveTimer) writeProject();
+    $('#project-list').innerHTML = projectList().map((p) => `
+      <li class="project-row${p.id === projectId ? ' current' : ''}">
+        <button class="project-open" data-project="${esc(p.id)}">
+          <span class="project-title">${esc(p.title || 'Untitled')}</span>
+          <span class="muted">${p.id === projectId ? 'Open now · ' : ''}edited ${timeAgo(p.updated)}</span>
+        </button>
+        <button class="ghost danger" data-delete-project="${esc(p.id)}" title="Delete this website">Delete</button>
+      </li>`).join('');
+  }
+
+  function openProjects() {
+    if (editingId) stopEditing();
+    renderProjects();
+    openModal('#projects-modal');
+  }
+
+  $('#project-list').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-delete-project]');
+    if (del) { deleteProject(del.dataset.deleteProject); return; }
+    const open = e.target.closest('[data-project]');
+    if (open) openProject(open.dataset.project);
+  });
 
   const snapshot = () => JSON.stringify({ site, currentPageId });
 
@@ -1566,17 +1682,6 @@ ${nav}
   }
 
   // ---------- Project files ----------
-  function replaceSite(newSite, msg) {
-    pushHistory();
-    site = newSite;
-    currentPageId = site.pages[0].id;
-    selectedId = null;
-    editingId = null;
-    renderAll();
-    save();
-    if (msg) toast(msg);
-  }
-
   $('#file-project').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1584,7 +1689,8 @@ ${nav}
       const data = JSON.parse(await file.text());
       const s = data.site || data;
       if (!Array.isArray(s.pages) || !s.pages.length) throw new Error('bad');
-      replaceSite(s, `Opened “${s.title || file.name}”`);
+      switchProject(uid(), s, data.currentPageId);
+      toast(`Opened “${s.title || file.name}” as a new website`);
     } catch (err) {
       toast('That file is not a SiteSlides project.');
     }
@@ -1638,8 +1744,9 @@ ${nav}
       emit('exported');
     },
     'close-modal': closeModals,
-    'new-blank': () => { if (confirm('Start a new blank site? (You can undo this.)')) replaceSite(blankSite(), 'New blank site'); },
-    'new-template': () => { if (confirm('Start over from the starter template? (You can undo this.)')) replaceSite(starterSite(), 'Starter template loaded'); },
+    projects: openProjects,
+    'new-blank': () => newProject('blank'),
+    'new-template': () => newProject('template'),
     'open-project': () => { const i = $('#file-project'); i.value = ''; i.click(); },
     'save-project': () => {
       download(new Blob([JSON.stringify({ app: 'siteslides', version: 1, site }, null, 1)], { type: 'application/json' }), `${slugify(site.title)}.siteslides.json`);
